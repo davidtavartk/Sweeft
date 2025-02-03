@@ -21,9 +21,9 @@ type HttpErrorCode =
     | "EXPECTATION_FAILED"
     | "TEAPOT";
 
-type BackendErrorCode = "VALIDATION_ERROR" | "USER_NOT_FOUND" | "INVALID_PASSWORD" | "COMPANY_NOT_FOUND";
+type BackendErrorCode = "VALIDATION_ERROR" | "USER_NOT_FOUND" | "INVALID_PASSWORD" | "COMPANY_NOT_FOUND" | "NO_CHANGES";
 
-type ErrorCode = HttpErrorCode | BackendErrorCode | "INTERNAL_ERROR" | "TOKEN_EXPIRED";
+type ErrorCode = HttpErrorCode | BackendErrorCode | "INTERNAL_ERROR" | "TOKEN_EXPIRED" | "NO_CHANGES";
 
 // All errors are based on the HTTP status codes
 export function getStatusFromErrorCode(code: ErrorCode): number {
@@ -89,6 +89,8 @@ export function getMessageFromErrorCode(code: ErrorCode): string {
             return "The request conflicts with the current state of the server.";
         case "INVALID_PASSWORD":
             return "The password is incorrect.";
+        case "NO_CHANGES":
+            return "No changes were made to the resource.";
         default:
             return "An internal server error occurred.";
     }

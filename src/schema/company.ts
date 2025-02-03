@@ -1,19 +1,32 @@
-import { boolean, integer, pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createSelectSchema } from "drizzle-zod";
-import { z } from "zod";
+import { boolean, index, integer, pgTable, text, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { createSelectSchema } from 'drizzle-zod';
+import { z } from 'zod';
+import { countryEnum, industryEnum } from './enums';
+import { passwordValidation } from './helpers';
+import { InferSelectModel, relations } from 'drizzle-orm';
+import { EmployeeTable } from './employee';
 
-export const companyTable = pgTable("company", {
-    id: integer().primaryKey().generatedAlwaysAsIdentity(),
-    name: varchar({ length: 255 }).notNull(),
-    email: varchar({ length: 255 }).notNull().unique(),
-    password: varchar({ length: 255 }).notNull(),
-    country: varchar({ length: 255 }).notNull(),
-    industry: varchar({ length: 255 }).notNull(),
-    code: text().notNull(),
-    isVerified: boolean().notNull().default(false),
-});
+export const CompanyTable = pgTable(
+    'company',
+    {
+        id: uuid().notNull().primaryKey().defaultRandom(),
+        name: varchar({ length: 255 }).notNull(),
+        email: varchar({ length: 255 }).notNull(),
+        password: varchar({ length: 255 }).notNull(),
+        country: countryEnum().notNull(),
+        industry: industryEnum().notNull(),
+        code: text().notNull(),
+        isVerified: boolean("is_verified").notNull().default(false),
+        refreshToken: text("refresh_token"),
+    },
+    (table) => [uniqueIndex('company_email_idx').on(table.email)]
+);
 
-export const selectCompanySchema = createSelectSchema(companyTable, {
+export const companyRelations = relations(CompanyTable, ({ many }) => ({
+    employees: many(EmployeeTable),
+}));
+
+export const selectCompanySchema = createSelectSchema(CompanyTable, {
     email: (schema) => schema.email(),
 });
 
@@ -27,10 +40,7 @@ export const newCompanySchema = z.object({
             industry: true,
         })
         .extend({
-            password: z.string().regex(/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/, {
-                message:
-                    "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character",
-            }),
+            password: passwordValidation,
             repeatPassword: z.string(),
         })
         .refine(
@@ -38,16 +48,52 @@ export const newCompanySchema = z.object({
                 return values.password === values.repeatPassword;
             },
             {
-                message: "Passwords must match!",
-                path: ["repeatPassword"],
+                message: 'Passwords must match!',
+                path: ['repeatPassword'],
             }
         ),
 });
 
+// Change query to body
 export const verifyCompanySchema = z.object({
     query: selectCompanySchema.pick({
         email: true,
         code: true,
     }),
 });
-export type NewCompany = z.infer<typeof newCompanySchema>["body"];
+
+export const companyLoginSchema = z.object({
+    body: selectCompanySchema.pick({
+        email: true,
+        password: true,
+    }),
+});
+
+export const changePasswordSchema = z.object({
+    body: z
+        .object({
+            email: z.string().email('Invalid email format'),
+            password: z.string(),
+            newPassword: passwordValidation,
+            repeatNewPassword: z.string(),
+        })
+        .refine((data) => data.newPassword === data.repeatNewPassword, {
+            message: 'New passwords must match',
+            path: ['repeatNewPassword'],
+        }),
+});
+
+export const updateCompanyDataSchema = z.object({
+    body: selectCompanySchema
+        .partial({
+            country: true,
+            industry: true,
+            name: true,
+        })
+        .pick({
+            email: true,
+        }),
+});
+
+export type NewCompany = z.infer<typeof newCompanySchema>['body'];
+export type CompanyType = InferSelectModel<typeof CompanyTable>

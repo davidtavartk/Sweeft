@@ -21,8 +21,10 @@ const transporter = nodemailer.createTransport({
 });
 
 
-export const sendVerificationEmail = async (baseUrl: string, email: string, code: string) => {
-    const verificationLink = `${baseUrl}/api/user/verify?email=${email}&code=${code}`;
+export const sendVerificationEmail = async (baseUrl: string, email: string, code: string, entityType: 'employee' | 'company') => {
+  const verificationLink = entityType === 'employee'
+  ? `${baseUrl}/api/employee/verify?email=${email}&code=${code}`
+  : `${baseUrl}/api/company/verify?email=${email}&code=${code}`;
 
 
     const info = await transporter.sendMail({

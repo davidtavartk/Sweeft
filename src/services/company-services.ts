@@ -1,30 +1,22 @@
-import { eq } from "drizzle-orm";
-import { companyTable, type NewCompany } from "@/schema/company";
-import { db } from "@/configs/db";
-import { hash, sha256 } from "@/utils/hash";
-import { BackendError } from "@/utils/errors";
-import crypto from "node:crypto";
-import consola from "consola";
+import { eq } from 'drizzle-orm';
+import { CompanyTable, CompanyType, type NewCompany } from '@/schema/company';
+import { db } from '@/configs/db';
+import { hash, sha256 } from '@/utils/hash';
+import { BackendError } from '@/utils/errors';
+import crypto from 'node:crypto';
+import consola from 'consola';
+import { getEntityByEmail } from './entity-services';
+import { EmployeeTable, NewEmployee } from '@/schema/employee';
 
-export async function getCompanyByEmail(email: string) {
-    const [company] = await db.select().from(companyTable).where(eq(companyTable.email, email)).limit(1);
-    return company;
-}
-
-export async function getCompanyById(id: number) {
-    const [company] = await db.select().from(companyTable).where(eq(companyTable.id, id)).limit(1);
-    return company;
-}
-
-export async function addCompany(company: NewCompany) {
+export const addCompany = async (company: NewCompany) => {
     const { name, email, password, country, industry } = company;
 
-    const code = crypto.randomBytes(32).toString("hex");
+    const code = crypto.randomBytes(32).toString('hex');
     const hashedCode = sha256.hash(code);
     const hashedPassword = await hash(password);
 
     const [newCompany] = await db
-        .insert(companyTable)
+        .insert(CompanyTable)
         .values({
             name,
             email,
@@ -34,66 +26,115 @@ export async function addCompany(company: NewCompany) {
             code: hashedCode,
         })
         .returning({
-            id: companyTable.id,
-            name: companyTable.name,
-            email: companyTable.email,
-            country: companyTable.country,
-            industry: companyTable.industry,
-            code: companyTable.code,
+            id: CompanyTable.id,
+            name: CompanyTable.name,
+            email: CompanyTable.email,
+            country: CompanyTable.country,
+            industry: CompanyTable.industry,
+            code: CompanyTable.code,
         });
 
     if (!newCompany) {
-        throw new BackendError("INTERNAL_ERROR", {
-            message: "Failed to add company",
+        throw new BackendError('INTERNAL_ERROR', {
+            message: 'Failed to add company',
         });
     }
 
-    consola.success("Company added successfully");
+    consola.success('Company added successfully');
 
     return { company: newCompany, code };
-}
+};
 
-export async function verifyCompany(email: string, code: string) {
-    const [company] = await db.select().from(companyTable).where(eq(companyTable.email, email)).limit(1);
 
-    if (!company) throw new BackendError('COMPANY_NOT_FOUND');
+export const changePassword = async (email: string, password: string) => {
+    const hashedPassword = await hash(password);
 
-    if (company.isVerified) {
-        throw new BackendError('CONFLICT', {
-            message: 'Company already verified',
-        });
-    }
-
-    const isVerified = sha256.verify(code, company.code);
-
-    if (!isVerified) {
-        throw new BackendError('UNAUTHORIZED', {
-            message: 'Invalid verification code',
-        });
-    }
-
-    const [updatedcompany] = await db
-        .update(companyTable)
-        .set({ isVerified })
-        .where(eq(companyTable.email, email))
-        .returning({ id: companyTable.id });
-
-    if (!updatedcompany) {
-        throw new BackendError('INTERNAL_ERROR', {
-            message: 'Failed to verify company',
-        });
-    }
-}
-
-export async function deleteCompany(email: string) {
-    const company = await getCompanyByEmail(email);
-
-    if (!company) throw new BackendError("COMPANY_NOT_FOUND");
-
-    const [deletedCompany] = await db.delete(companyTable).where(eq(companyTable.email, email)).returning({
-        id: companyTable.id,
-        email: companyTable.email,
+    const [updatedCompany] = await db.update(CompanyTable).set({ password: hashedPassword }).where(eq(CompanyTable.email, email)).returning({
+        id: CompanyTable.id,
+        email: CompanyTable.email,
     });
 
-    return deletedCompany;
-}
+    if (!updatedCompany) {
+        throw new BackendError('INTERNAL_ERROR', {
+            message: 'Failed to update password',
+        });
+    }
+
+    return updatedCompany;
+};
+
+export const updateCompanyData = async (company: CompanyType, email: string, updatedData: Partial<NewCompany>) => {
+    const { email: _email, ...dataObjectWithoutEmail } = updatedData;
+
+    if (dataObjectWithoutEmail.name && dataObjectWithoutEmail.name === company.name) {
+        throw new BackendError('NO_CHANGES', {
+            message: 'The company name is the same as the existing one',
+        });
+    }
+
+    if (dataObjectWithoutEmail.country && dataObjectWithoutEmail.country === company.country) {
+        throw new BackendError('NO_CHANGES', {
+            message: 'The company country is the same as the existing one',
+        });
+    }
+
+    if (dataObjectWithoutEmail.industry && dataObjectWithoutEmail.industry === company.industry) {
+        throw new BackendError('NO_CHANGES', {
+            message: 'The company industry is the same as the existing one',
+        });
+    }
+
+    const [updatedCompany] = await db.update(CompanyTable).set(dataObjectWithoutEmail).where(eq(CompanyTable.email, email)).returning({
+        id: CompanyTable.id,
+        name: CompanyTable.name,
+        email: CompanyTable.email,
+        country: CompanyTable.country,
+        industry: CompanyTable.industry,
+    });
+
+    consola.success('Company data updated successfully:', updatedData);
+
+    if (!updatedCompany) {
+        throw new BackendError('INTERNAL_ERROR', {
+            message: 'Failed to update company data',
+        });
+    }
+
+    return updatedCompany;
+};
+
+export const addEmployee = async (employee: NewEmployee, companyId: string) => {
+    const { firstname, lastname, email, password } = employee;
+
+    const code = crypto.randomBytes(32).toString('hex');
+    const hashedCode = sha256.hash(code);
+    const hashedPassword = await hash(password);
+
+    const [newEmployee] = await db
+        .insert(EmployeeTable)
+        .values({
+            firstname,
+            lastname,
+            email,
+            password: hashedPassword,
+            code: hashedCode,
+            companyId
+        })
+        .returning({
+            id: EmployeeTable.id,
+            firstname: EmployeeTable.firstname,
+            lastname: EmployeeTable.lastname,
+            email: EmployeeTable.email,
+            code: EmployeeTable.code,
+        });
+
+    if (!newEmployee) {
+        throw new BackendError('INTERNAL_ERROR', {
+            message: 'Failed to add Employee',
+        });
+    }
+
+    consola.success('Employee added successfully');
+
+    return { employee: newEmployee, code };
+};
