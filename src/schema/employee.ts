@@ -1,6 +1,6 @@
 import { boolean, pgTable, text, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { CompanyTable } from './company';
-import { InferSelectModel, relations } from 'drizzle-orm';
+import { InferSelectModel } from 'drizzle-orm';
 import { createSelectSchema } from 'drizzle-zod';
 import { passwordValidation } from './helpers';
 import { z } from 'zod';
@@ -15,22 +15,16 @@ export const EmployeeTable = pgTable(
         firstname: varchar({ length: 255 }).notNull(),
         lastname: varchar({ length: 255 }).notNull(),
         email: varchar({ length: 255 }).notNull(),
-        password: varchar({ length: 255 }).notNull(),
+        password: varchar({ length: 255 }),
         code: text().notNull(),
         isVerified: boolean("is_verified").notNull().default(false),
+        isActivated: boolean("is_activated").notNull().default(false),
         refreshToken: text("refresh_token"),
     },
     (table) => [
         uniqueIndex('employee_email_idx').on(table.email),
     ]
 );
-
-export const employeeRelations = relations(EmployeeTable, ({ one }) => ({
-    company: one(CompanyTable, {
-        fields: [EmployeeTable.companyId],
-        references: [CompanyTable.id],
-    }),
-}));
 
 export const selectEmployeeSchema = createSelectSchema(EmployeeTable, {
     email: (schema) => schema.email(),
@@ -42,9 +36,21 @@ export const newEmployeeSchema = z.object({
             firstname: true,
             lastname: true,
             email: true,
-            password: true,
         })
-        .extend({
+});
+
+export const verifyEmployeeSchema = z.object({
+    query: selectEmployeeSchema.pick({
+        email: true,
+        code: true,
+    }),
+});
+
+export const setEmployeePasswordSetupSchema = z.object({
+    body: selectEmployeeSchema.pick({
+        email: true,
+        password: true,
+    }).extend({
             password: passwordValidation,
             repeatPassword: z.string(),
         })
@@ -59,10 +65,16 @@ export const newEmployeeSchema = z.object({
         ),
 });
 
-export const verifyEmployeeSchema = z.object({
-    query: selectEmployeeSchema.pick({
+export const employeeLoginSchema = z.object({
+    body: selectEmployeeSchema.pick({
         email: true,
-        code: true,
+        password: true,
+    }),
+});
+
+export const deleteEmployeeSchema = z.object({
+    params: selectEmployeeSchema.pick({
+        email: true,
     }),
 });
 

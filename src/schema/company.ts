@@ -1,10 +1,9 @@
-import { boolean, index, integer, pgTable, text, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, pgTable, text, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { countryEnum, industryEnum } from './enums';
 import { passwordValidation } from './helpers';
-import { InferSelectModel, relations } from 'drizzle-orm';
-import { EmployeeTable } from './employee';
+import { InferSelectModel } from 'drizzle-orm';
 
 export const CompanyTable = pgTable(
     'company',
@@ -16,15 +15,11 @@ export const CompanyTable = pgTable(
         country: countryEnum().notNull(),
         industry: industryEnum().notNull(),
         code: text().notNull(),
-        isVerified: boolean("is_verified").notNull().default(false),
-        refreshToken: text("refresh_token"),
+        isVerified: boolean('is_verified').notNull().default(false),
+        refreshToken: text('refresh_token'),
     },
     (table) => [uniqueIndex('company_email_idx').on(table.email)]
 );
-
-export const companyRelations = relations(CompanyTable, ({ many }) => ({
-    employees: many(EmployeeTable),
-}));
 
 export const selectCompanySchema = createSelectSchema(CompanyTable, {
     email: (schema) => schema.email(),
@@ -54,7 +49,6 @@ export const newCompanySchema = z.object({
         ),
 });
 
-// Change query to body
 export const verifyCompanySchema = z.object({
     query: selectCompanySchema.pick({
         email: true,
@@ -95,5 +89,11 @@ export const updateCompanyDataSchema = z.object({
         }),
 });
 
+export const updateCompanySubscriptionSchema = z.object({
+    body: z.object({
+        subscriptionId: z.number(),
+    }),
+});
+
 export type NewCompany = z.infer<typeof newCompanySchema>['body'];
-export type CompanyType = InferSelectModel<typeof CompanyTable>
+export type CompanyType = InferSelectModel<typeof CompanyTable>;

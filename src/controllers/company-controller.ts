@@ -4,11 +4,12 @@ import {
     CompanyTable,
     newCompanySchema,
     updateCompanyDataSchema,
+    updateCompanySubscriptionSchema,
     verifyCompanySchema,
 } from '@/schema/company';
 import { createHandler } from '@/utils/create';
 import { addCompany, addEmployee, updateCompanyData } from '@/services/company-services';
-import { deleteEntity, getEntityByEmail, updatePassword, verifyEntity } from '@/services/entity-services';
+import { deleteEntity, getEntityByEmail, getEntityById, updatePassword, verifyEntity } from '@/services/entity-services';
 import { updateRefreshToken } from '@/services/token-services';
 import { BackendError, getStatusFromErrorCode } from '@/utils/errors';
 import { sendVerificationEmail } from '@/utils/email';
@@ -16,7 +17,9 @@ import env from '@/env';
 import consola from 'consola';
 import { generateTokens } from '@/utils/jwt';
 import { compareToHash } from '@/utils/hash';
-import { EmployeeTable, newEmployeeSchema } from '@/schema/employee';
+import { deleteEmployeeSchema, EmployeeTable, newEmployeeSchema } from '@/schema/employee';
+import { SubscriptionTable } from '@/schema/subscription';
+import { setOrUpdateCompanySubscription } from '@/services/subscription-services';
 
 export const handleAddCompany = createHandler(newCompanySchema, async (req, res) => {
     try {
@@ -35,7 +38,7 @@ export const handleAddCompany = createHandler(newCompanySchema, async (req, res)
         const success = await sendVerificationEmail(env.API_BASE_URL, addedCompany.email, code, 'company');
 
         if (!success) {
-            await deleteEntity(CompanyTable ,addedCompany.email);
+            await deleteEntity(CompanyTable, addedCompany.email);
             throw new BackendError('INTERNAL_ERROR', {
                 message: 'Failed to register company',
             });
@@ -205,4 +208,75 @@ export const handleAddEmployee = createHandler(newEmployeeSchema, async (req, re
     }
 });
 
-// export const handleDeleteEmployee = createHandler(async (req, res) => { 
+export const handleDeleteEmployee = createHandler(deleteEmployeeSchema, async (req, res) => { 
+
+    try {
+        const { email } = req.params;
+        const companyId = res.locals.user.id;
+
+        const employee = await getEntityByEmail(EmployeeTable, email);
+
+        if (!employee) {
+            throw new BackendError('USER_NOT_FOUND', { message: 'Employee not found' });
+        }
+
+        if (employee.companyId !== companyId) {
+            res.status(403).json({ message: 'Unauthorized to delete this employee' });
+        }
+
+        const deletedEmployee = await deleteEntity(EmployeeTable, email);
+        consola.success(`Employee with email: ${email} was deleted successfully`);
+
+        res.status(200).json({ message: 'Employee deleted successfully', employee: deletedEmployee });
+    } catch (error) {
+        if (error instanceof BackendError) {
+            res.status(getStatusFromErrorCode(error.code)).json({
+                code: error.code,
+                message: error.message,
+                details: error.details,
+            });
+        }
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
+
+export const handleUpdateSubscriptionPlan = createHandler(updateCompanySubscriptionSchema, async (req, res) => {
+    try {
+      const { subscriptionId } = req.body;
+      const company = res.locals.user;
+
+      const subscription = await getEntityById(SubscriptionTable, subscriptionId);
+      
+      if (!subscription) {
+        throw new BackendError('NOT_FOUND', { message: 'Invalid subscription plan' });
+      }
+
+      if(company.subscriptionId === subscriptionId) {
+        consola.info('Company is already subscribed to this plan');
+        res.status(400).json({ message: 'Company is already subscribed to this plan' });
+      }
+      
+      const updatedSubscription = await setOrUpdateCompanySubscription(company.id, subscriptionId);
+
+      consola.success('Subscription plan updated successfully:', updatedSubscription);
+
+      res.status(200).json({
+          message: 'Subscription plan updated successfully',
+          company: updatedSubscription,
+      });
+  
+    } catch (error) {
+      if (error instanceof BackendError) {
+        res.status(getStatusFromErrorCode(error.code)).json({
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        });
+        return;
+      }
+      console.error(error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });

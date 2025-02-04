@@ -1,15 +1,25 @@
 import { db } from '@/configs/db';
 import {  CompanyTable, CompanyType } from '@/schema/company';
 import { EmployeeTable, EmployeeType } from '@/schema/employee';
+import { SubscriptionTable } from '@/schema/subscription';
 import { BackendError } from '@/utils/errors';
 import { compareToHash, hash, sha256 } from '@/utils/hash';
 import consola from 'consola';
-import { eq } from 'drizzle-orm';
+import { eq, InferSelectModel } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
 
-export const getEntityById = async (table: typeof EmployeeTable | typeof CompanyTable, id: string) => {
-    const [entity] = await db.select().from(table).where(eq(table.id, id)).limit(1);
-    return entity;
-};
+export const getEntityById = async <T extends PgTable>(
+    table: T,
+    id: string | number
+  ): Promise<InferSelectModel<T> | undefined> => {
+
+    const [entity] = await db
+      .select()
+      .from(table as any)
+      .where(eq((table as any).id, id))
+      .limit(1);
+    return entity as InferSelectModel<T> | undefined;
+  };
 
 export const getEntityByEmail = async <T extends typeof EmployeeTable | typeof CompanyTable>(
     table: T,
@@ -27,7 +37,7 @@ export const deleteEntity = async (table: typeof EmployeeTable | typeof CompanyT
         throw new BackendError('USER_NOT_FOUND', {message: `${entityName} with email ${email} not found`});
     }
 
-    const [deletedEntity] = await db.delete(table).where(eq(table.email, email)).returning({
+    const [deletedEntity] = await db.delete(table).where(eq(table.id, entity.id)).returning({
         id: table.id,
         email: table.email,
     });
@@ -76,6 +86,10 @@ export const updatePassword = async (table: typeof EmployeeTable | typeof Compan
 
     if (!entity) {
         throw new BackendError('USER_NOT_FOUND', { message: 'Entity not found' });
+    }
+
+    if (entity.password === null) {
+        throw new BackendError('VALIDATION_ERROR', { message: 'Password not set for this entity' });
     }
 
     const isOldSameAsDb = await compareToHash(password, entity.password);

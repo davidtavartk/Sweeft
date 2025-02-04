@@ -104,11 +104,10 @@ export const updateCompanyData = async (company: CompanyType, email: string, upd
 };
 
 export const addEmployee = async (employee: NewEmployee, companyId: string) => {
-    const { firstname, lastname, email, password } = employee;
+    const { firstname, lastname, email } = employee;
 
     const code = crypto.randomBytes(32).toString('hex');
     const hashedCode = sha256.hash(code);
-    const hashedPassword = await hash(password);
 
     const [newEmployee] = await db
         .insert(EmployeeTable)
@@ -116,7 +115,6 @@ export const addEmployee = async (employee: NewEmployee, companyId: string) => {
             firstname,
             lastname,
             email,
-            password: hashedPassword,
             code: hashedCode,
             companyId
         })

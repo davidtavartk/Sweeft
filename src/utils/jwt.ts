@@ -29,3 +29,7 @@ export function verifyAccessToken(token: string) {
         });
     }
 }
+
+export const generateTemporaryToken = (id: string) => {
+    return jwt.sign({ id }, env.JWT_SECRET, { expiresIn: '20m' });
+};

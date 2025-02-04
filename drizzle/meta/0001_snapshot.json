@@ -1,6 +1,6 @@
 {
-  "id": "9d7571c3-4117-4005-a889-8f29c752f8cc",
-  "prevId": "595910ae-55ca-493e-bb0b-9f65e6f2b32a",
+  "id": "4464e64a-baeb-451a-b063-e4dbb7dd0ba5",
+  "prevId": "d58cc2ee-9288-4bab-a750-8e4a08a63229",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -91,6 +91,85 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.company_subscription": {
+      "name": "company_subscription",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subscription_id": {
+          "name": "subscription_id",
+          "type": "serial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "company_subscription_company_id_company_id_fk": {
+          "name": "company_subscription_company_id_company_id_fk",
+          "tableFrom": "company_subscription",
+          "tableTo": "company",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "company_subscription_subscription_id_subscription_id_fk": {
+          "name": "company_subscription_subscription_id_subscription_id_fk",
+          "tableFrom": "company_subscription",
+          "tableTo": "subscription",
+          "columnsFrom": [
+            "subscription_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.employee": {
       "name": "employee",
       "schema": "",
@@ -102,8 +181,8 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "companyId": {
-          "name": "companyId",
+        "company_id": {
+          "name": "company_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
@@ -130,7 +209,7 @@
           "name": "password",
           "type": "varchar(255)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "code": {
           "name": "code",
@@ -138,15 +217,22 @@
           "primaryKey": false,
           "notNull": true
         },
-        "isVerified": {
-          "name": "isVerified",
+        "is_verified": {
+          "name": "is_verified",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
         },
-        "refreshToken": {
-          "name": "refreshToken",
+        "is_activated": {
+          "name": "is_activated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "refresh_token": {
+          "name": "refresh_token",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -170,12 +256,12 @@
         }
       },
       "foreignKeys": {
-        "employee_companyId_company_id_fk": {
-          "name": "employee_companyId_company_id_fk",
+        "employee_company_id_company_id_fk": {
+          "name": "employee_company_id_company_id_fk",
           "tableFrom": "employee",
           "tableTo": "company",
           "columnsFrom": [
-            "companyId"
+            "company_id"
           ],
           "columnsTo": [
             "id"
@@ -184,6 +270,63 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.subscription": {
+      "name": "subscription",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "plan": {
+          "name": "plan",
+          "type": "plan",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price": {
+          "name": "price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_limit": {
+          "name": "file_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_limit": {
+          "name": "user_limit",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "additional_cost_per_file": {
+          "name": "additional_cost_per_file",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "additional_cost_per_user": {
+          "name": "additional_cost_per_user",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -461,6 +604,15 @@
         "Retail",
         "Energy",
         "Entertainment"
+      ]
+    },
+    "public.plan": {
+      "name": "plan",
+      "schema": "public",
+      "values": [
+        "Free",
+        "Basic",
+        "Premium"
       ]
     }
   },
